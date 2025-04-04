@@ -1,11 +1,11 @@
 {
-	"id": "sample-plugin",
-	"name": "Sample Plugin",
+	"id": "ribbon-plus",
+	"name": "Ribbon Plus",
 	"version": "1.0.0",
 	"minAppVersion": "0.15.0",
-	"description": "Demonstrates some of the capabilities of the Obsidian API.",
-	"author": "Obsidian",
-	"authorUrl": "https://obsidian.md",
-	"fundingUrl": "https://obsidian.md/pricing",
-	"isDesktopOnly": false
+	"description": "a ribbon bar impovements plugin that you can create multiple ribbon blocks and add custom icons to them.",
+	"author": "Jiaming Yang",
+	"authorUrl": "https://jiamingyy.github.io",
+	"fundingUrl": "https://jiamingyy.github.io",
+	"isDesktopOnly": true
 }
