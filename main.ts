@@ -11,16 +11,48 @@ import {
 
 // Remember to rename these classes and interfaces!
 
-interface MyPluginSettings {
+interface RobbinPlusPluginSettings {
 	robbinbarNum: number;
 }
 
-const DEFAULT_SETTINGS: MyPluginSettings = {
+const DEFAULT_SETTINGS: RobbinPlusPluginSettings = {
 	robbinbarNum: 2,
 };
 
+function cloneElementWithEvents<T extends HTMLElement>(element: T, clearChild: boolean): T {
+	const clonedElement = element.cloneNode(true) as T;
+	if (clearChild) {
+		// Clear child elements if needed
+		while (clonedElement.firstChild) {
+			clonedElement.removeChild(clonedElement.firstChild);
+		}
+	}
+	// Copy event listeners
+	getEventListeners(element).forEach(listener => {
+		clonedElement.addEventListener(listener.type, listener.listener);
+	});
+
+	return clonedElement;
+}
+
+
+function getEventListeners(element: HTMLElement): { type: string; listener: EventListener }[] {
+	const eventListeners: { type: string; listener: EventListener }[] = [];
+	const eventMap = (element as any).eventListenerList || {};
+
+	for (const type in eventMap) {
+		if (eventMap.hasOwnProperty(type)) {
+			eventMap[type].forEach((listener: EventListener) => {
+				eventListeners.push({ type, listener });
+			});
+		}
+	}
+
+	return eventListeners;
+}
+
 export default class RobbinPlusPlugin extends Plugin {
-	settings: MyPluginSettings;
+	settings: RobbinPlusPluginSettings;
 
 	async onload() {
 		await this.loadSettings();
@@ -28,32 +60,40 @@ export default class RobbinPlusPlugin extends Plugin {
 
 		this.app.workspace.onLayoutReady(() => {
 			const robbinbarContainer =
-				document.querySelector(".workspace-ribbon");
+				document.querySelector(".workspace-ribbon") as HTMLElement;
 			// get child element of robbinbarContainer
 			if (robbinbarContainer) {
+				robbinbarContainer.style.justifyContent = "space-between";
+				robbinbarContainer.style.flexWrap = "wrap";
 				const robbin_action_bar = robbinbarContainer.querySelector(
 					".side-dock-actions"
 				) as HTMLElement;
+				//side-dock-settings
+				const side_dock_settings = robbinbarContainer.querySelector(".side-dock-settings") as HTMLElement;
+				if (side_dock_settings) {
+					side_dock_settings.style.display = "none";
+				}
 				var actions = robbin_action_bar?.childNodes;
+
 				if (robbin_action_bar) {
 					actions = robbin_action_bar.childNodes;
 					robbin_action_bar.style.display = "none"; // hide the original robbin_action_bar
 				}
-				// add more one robbin_action_bar elements to robbinbarContainer
-				// 按照设置的数量划分 actions 到不同的 robbin_action_bar 中
+				else{
+					console.log("robbin_action_bar not found");
+					return;
+				}
 				let eachBarActions = Math.ceil(
 					actions.length / this.settings.robbinbarNum
 				);
 
+
 				for (let i = 0; i < this.settings.robbinbarNum; i++) {
-					const robbin_action_bar_plus =
-						document.createElement("div");
-					robbin_action_bar_plus.className = "side-dock-actions-plus side-dock-actions";
-					// add actions to robbin_action_bar_plus
+					const robbin_action_bar_plus = cloneElementWithEvents(robbin_action_bar, true);
 					robbin_action_bar_plus.style.display = "flex";
 					robbin_action_bar_plus.style.flexDirection = "column";
-					robbin_action_bar_plus.style.gap = robbin_action_bar.style.gap;
-					
+					robbin_action_bar_plus.className += " side-dock-actions-plus";
+
 					for (
 						let j = i * eachBarActions;
 						j < eachBarActions * i + eachBarActions &&
@@ -61,23 +101,18 @@ export default class RobbinPlusPlugin extends Plugin {
 						j++
 					) {
 						const action = actions[j] as HTMLElement;
-						// clone the action element
-						const robbin_action_bar_plus_child = action.cloneNode(
-							true
-						) as HTMLElement;
+						const robbin_action_bar_plus_child = cloneElementWithEvents(action, false);
 						robbin_action_bar_plus_child.onclick = (e) => {
-							if (action.click) {
-								action.click();
-							} else {
-								console.log("action onclick not found");
-							}
-						};
-
-						robbin_action_bar_plus.appendChild(
+							action.click();
+							e.stopPropagation();
+						}
+						robbin_action_bar_plus?.appendChild(
 							robbin_action_bar_plus_child
 						);
 					}
-					robbinbarContainer.appendChild(robbin_action_bar_plus);
+
+					if (robbin_action_bar_plus)
+						robbinbarContainer.appendChild(robbin_action_bar_plus);
 				}
 			} else {
 				console.log("robbinbarContainer not found");
@@ -157,7 +192,14 @@ export default class RobbinPlusPlugin extends Plugin {
 		const robbin_action_bar = robbinbarContainer?.querySelector(
 			".side-dock-actions"
 		) as HTMLElement;
-		robbin_action_bar.style.display = "flex"; // show the original robbin_action_bar
+		if (robbin_action_bar)
+			robbin_action_bar.style.display = "flex"; // show the original robbin_action_bar
+
+		const side_dock_settings = robbinbarContainer?.querySelector("side-dock-settings") as HTMLElement;
+		if (side_dock_settings)
+			side_dock_settings.style.display = "none"; // hide the side_dock_settings
+
+
 	};
 
 	async loadSettings() {
@@ -190,9 +232,9 @@ class SampleModal extends Modal {
 }
 
 class SampleSettingTab extends PluginSettingTab {
-	plugin: MyPlugin;
+	plugin: RobbinPlusPlugin;
 
-	constructor(app: App, plugin: MyPlugin) {
+	constructor(app: App, plugin: RobbinPlusPlugin) {
 		super(app, plugin);
 		this.plugin = plugin;
 	}
@@ -203,14 +245,18 @@ class SampleSettingTab extends PluginSettingTab {
 		containerEl.empty();
 
 		new Setting(containerEl)
-			.setName("Setting #1")
-			.setDesc("It's a secret")
+			.setName("Ribbon Bar Number #1")
+			.setDesc("Set the number of ribbon bars")
 			.addText((text) =>
 				text
-					.setPlaceholder("Enter your secret")
-					.setValue(this.plugin.settings.mySetting)
+					.setPlaceholder("Enter a number")
+					.setValue(this.plugin.settings.robbinbarNum.toString())
 					.onChange(async (value) => {
-						this.plugin.settings.mySetting = value;
+						this.plugin.settings.robbinbarNum = parseInt(value);
+						if (isNaN(this.plugin.settings.robbinbarNum)) {
+							this.plugin.settings.robbinbarNum = 2;
+							new Notice("Please enter a valid number");
+						}
 						await this.plugin.saveSettings();
 					})
 			);
